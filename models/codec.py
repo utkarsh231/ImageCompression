@@ -73,23 +73,28 @@ class ViTCompressorImproved(nn.Module):
     def __init__(self, cfg: CodecCfg):
         super().__init__()
         self.cfg = cfg
-        # stem
+        
+        # Cleaner approach - stick to standard patch sizes
         if cfg.use_hybrid_stem:
-            self.stem = HybridStem(cfg.patch_size)
-            enc_in = cfg.patch_size
-            vit_img = cfg.img_size // 4
+            self.stem = HybridStem(cfg.embed_dim)  # Output embed_dim channels
+            encoder_in_chans = cfg.embed_dim
+            img_size_for_vit = cfg.img_size // 4  # Due to 2 strided convs
         else:
             self.stem = nn.Identity()
-            enc_in = 3
-            vit_img = cfg.img_size
-        # backbone
-        if cfg.windowed:
-            self.encoder = SwinTransformer(img_size=vit_img, patch_size=cfg.patch_size, in_chans=enc_in,
-                                           embed_dim=cfg.embed_dim, depths=[cfg.depth], num_heads=[cfg.heads], window_size=7)
-        else:
-            self.encoder = VisionTransformer(img_size=vit_img, patch_size=cfg.patch_size, in_chans=enc_in,
-                                            embed_dim=cfg.embed_dim, depth=cfg.depth, num_heads=cfg.heads,
-                                            qkv_bias=True, norm_layer=nn.LayerNorm)
+            encoder_in_chans = 3
+            img_size_for_vit = cfg.img_size
+            
+        # Standard ViT
+        self.encoder = VisionTransformer(
+            img_size=img_size_for_vit,
+            patch_size=cfg.patch_size,
+            in_chans=encoder_in_chans,
+            embed_dim=cfg.embed_dim,
+            depth=cfg.depth,
+            num_heads=cfg.heads,
+            class_token=False,  # Explicitly disable CLS token
+            num_classes=0,      # No classification head
+        )
         # entropy
         self.entropy_model = GaussianConditional(None) if cfg.use_gaussian_conditional else EntropyBottleneck(cfg.latent_channels)
         # decoder ---------------------------------------------------
@@ -145,7 +150,7 @@ class PerceptualRateDistortionLoss(nn.Module):
 if __name__ == "__main__":
     import argparse, torchvision.transforms as T
     from PIL import Image
-    ap=argparse.ArgumentParser(); ap.add_argument("--img",required=True); args=ap.parseArgs()
+    ap=argparse.ArgumentParser(); ap.add_argument("--img",required=True); args=ap.parse_args()
     cfg=CodecCfg(); model=ViTCompressorImproved(cfg).to(cfg.device)
     img=T.Compose([T.Resize((cfg.img_size,cfg.img_size)),T.ToTensor()])(Image.open(args.img).convert("RGB")).unsqueeze(0).to(cfg.device)
     with torch.no_grad(): out,_=model(img)
