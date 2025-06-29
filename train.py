@@ -53,12 +53,13 @@ def run(cfg: DictConfig, device: str):
         steps_per_epoch = cfg.trainer.get("steps_per_epoch", 1000)
         print(f"[warn] Infinite loader detected → using steps_per_epoch={steps_per_epoch}")
     
-    # Calculate total training steps (after gradient accumulation)
-    effective_steps_per_epoch = steps_per_epoch // cfg.data.accum_steps
-    total_steps = cfg.trainer.epochs * effective_steps_per_epoch
-    warmup_steps = cfg.trainer.warmup_epochs * effective_steps_per_epoch
+    # Calculate total training steps (BEFORE gradient accumulation)
+    # LR scheduler should see every mini-batch, not just optimizer steps
+    total_steps = cfg.trainer.epochs * steps_per_epoch
+    warmup_steps = cfg.trainer.warmup_epochs * steps_per_epoch
     
-    print(f"[info] Total training: {total_steps} optimizer steps ({warmup_steps} warmup)")
+    print(f"[info] Total training: {total_steps} mini-batch steps, accum_steps={cfg.data.accum_steps}")
+    print(f"[info] Optimizer will step every {cfg.data.accum_steps} mini-batches")
     
     # Model + optimizer ------------------------------------------------------
     model_cfg = CodecCfg(**cfg.model)
@@ -78,7 +79,8 @@ def run(cfg: DictConfig, device: str):
     scaler = GradScaler(enabled=cfg.trainer.amp)
     
     # Training state
-    global_step = 0
+    minibatch_step = 0  # Counts every mini-batch
+    optimizer_step = 0  # Counts only when optimizer steps
     best_val_loss = float('inf')
     
     # Training loop ----------------------------------------------------------
@@ -102,6 +104,12 @@ def run(cfg: DictConfig, device: str):
             # Backward pass
             scaler.scale(scaled_loss).backward()
             accumulated_loss += scaled_loss.item()
+            minibatch_step += 1
+            
+            # Learning rate scheduling (every mini-batch)
+            lr = lr_schedule(minibatch_step, total_steps, cfg.trainer.lr, warmup_steps)
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = lr
             
             # Optimizer step every accum_steps batches OR at end of epoch
             should_step = (batch_idx % cfg.data.accum_steps == 0) or (batch_idx == steps_per_epoch)
@@ -117,19 +125,17 @@ def run(cfg: DictConfig, device: str):
                 scaler.update()
                 optimizer.zero_grad(set_to_none=True)
                 
-                # Learning rate scheduling (only when we actually step)
-                lr = lr_schedule(global_step, total_steps, cfg.trainer.lr, warmup_steps)
-                for param_group in optimizer.param_groups:
-                    param_group['lr'] = lr
-                
                 # Logging
                 actual_loss = accumulated_loss * cfg.data.accum_steps
                 epoch_loss += actual_loss
+                optimizer_step += 1
                 
-                if global_step % cfg.trainer.log_every == 0:
+                # Print logs based on optimizer steps
+                if optimizer_step % cfg.trainer.log_every == 0:
                     log_dict = {
                         'epoch': epoch,
-                        'step': global_step,
+                        'batch': batch_idx,
+                        'opt_step': optimizer_step,
                         'loss': round(actual_loss, 4),
                         'bpp': round(logs['bpp'].item(), 4),
                         'mse': round(logs['mse'].item(), 6),
@@ -142,15 +148,17 @@ def run(cfg: DictConfig, device: str):
                 
                 # Reset accumulation
                 accumulated_loss = 0.0
-                global_step += 1
             
             # Break if using steps_per_epoch limit
             if batch_idx >= steps_per_epoch:
                 break
         
         # Epoch summary
-        avg_epoch_loss = epoch_loss / effective_steps_per_epoch
-        print(f"[epoch {epoch}] Average loss: {avg_epoch_loss:.4f}")
+        if optimizer_step > 0:
+            avg_epoch_loss = epoch_loss / (optimizer_step - (epoch-1) * (steps_per_epoch // cfg.data.accum_steps))
+            print(f"[epoch {epoch}] Average loss: {avg_epoch_loss:.4f}, optimizer steps: {optimizer_step}")
+        else:
+            print(f"[epoch {epoch}] No optimizer steps completed")
         
         # Validation and checkpointing ---------------------------------------
         if epoch % cfg.trainer.save_freq == 0:
@@ -167,7 +175,7 @@ def run(cfg: DictConfig, device: str):
                 'optimizer': optimizer.state_dict(),
                 'scaler': scaler.state_dict(),
                 'epoch': epoch,
-                'global_step': global_step,
+                'global_step': optimizer_step,
                 'cfg': model_cfg,
                 'val_metrics': val_metrics,
                 'train_loss': avg_epoch_loss
