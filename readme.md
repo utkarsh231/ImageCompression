@@ -3,10 +3,6 @@ CNN codecs at low bit-rates while remaining **easy to hack** for new research
 ideas.  Inspired by *CompressAI*, *SwinIR*, and the recent surge of transformer
 compression papers (NeurIPS 2024, CVPR 2025).
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/utkarsh231/vit-compression/main/.assets/teaser.png" width="660"/>
-</p>
-
 ---
 
 ## ✨ Highlights
