@@ -1,0 +1,39 @@
+model:
+  img_size: 256
+  patch_size: 8
+  embed_dim: 384
+  depth: 8
+  heads: 6
+  windowed: false
+  use_hybrid_stem: true
+  latent_channels: 384
+  use_gaussian_conditional: false
+  lam: 0.0015
+  lam_list:
+  - 0.0005
+  - 0.0015
+  - 0.005
+  - 0.015
+  alpha_ms_ssim: 0.75
+  beta_mse: 0.25
+  gamma_lpips: 0.05
+data:
+  dir: sample_shards
+  val_dir: kaggle_cats
+  shuffle: true
+  num_workers: 8
+  batch_size: 16
+  accum_steps: 16
+trainer:
+  epochs: 400
+  steps_per_epoch: 1000
+  lr: 0.0002
+  weight_decay: 0.0001
+  warmup_epochs: 5
+  max_grad_norm: 1.0
+  amp: true
+  log_every: 50
+  ckpt_dir: checkpoints
+  save_freq: 10
+  wandb: true
+  project: ViTCompression

@@ -7,7 +7,7 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 import torch.nn as nn
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
@@ -43,8 +43,14 @@ def run(cfg: DictConfig, device: str):
     train_loader = make_train_loader(cfg)
     val_loader = make_val_loader(cfg)
 
-    total_steps = cfg.trainer.epochs * math.ceil(len(train_loader.dataset) / cfg.data.batch_size)
-    warmup_steps = cfg.trainer.warmup_epochs * math.ceil(len(train_loader.dataset) / cfg.data.batch_size)
+    try:
+        steps_per_epoch = len(train_loader)               # ImageFolder etc.
+    except TypeError:
+        steps_per_epoch = cfg.trainer.get("steps_per_epoch", 1000)
+        print(f"[warn] infinite loader → using steps_per_epoch={steps_per_epoch}")
+
+    total_steps  = cfg.trainer.epochs       * steps_per_epoch
+    warmup_steps = cfg.trainer.warmup_epochs * steps_per_epoch
 
     # model + optimiser ------------------------------------------------------
     model_cfg = CodecCfg(**cfg.model)

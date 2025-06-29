@@ -20,7 +20,7 @@ model:
 # --- data -------------------------------------------------------------------
 data:
   dir: /path/to/imagenet/train                # folder of tar files or images
-  #val_dir: /path/to/kodak                     # 24‑image Kodak set for quick val
+  val_dir: kaggle_cats                        
   shuffle: true
   num_workers: 8
   batch_size: 16                              # after gradient accumulation
@@ -29,6 +29,7 @@ data:
 # --- trainer ----------------------------------------------------------------
 trainer:
   epochs: 400
+  steps_per_epoch: 1000 
   lr: 2e-4
   weight_decay: 1e-4
   warmup_epochs: 5

@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Iterator
 
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as T
 
 try:
@@ -14,35 +14,64 @@ except ImportError as e:
 
 
 def make_train_loader(cfg):
-    """Returns a torch DataLoader that reads \*.tar shards via WebDataset.
+    """
+    Build a training DataLoader.
 
-    Assumes `cfg.data.dir` contains files like 00000.tar, 00001.tar, ...
-    Each tar must have at least an `img` key (jpg/png)."""
-    
-    shards = str(Path(cfg.data.dir) / "{000000..999999}.tar")  # brace expands
+    Priority:
+      1. If <cfg.data.dir> contains one or more *.tar files ⇒ use WebDataset.
+      2. Else if <cfg.data.dir> is a folder of images/sub‑folders ⇒ ImageFolder.
+      3. Otherwise raise RuntimeError.
+    """
+    root = Path(cfg.data.dir)
 
-    preprocess = T.Compose([
-        T.RandomResizedCrop(cfg.model.img_size),
-        T.RandomHorizontalFlip(),
-        T.ToTensor(),
-    ])
+    # ── Option 1: WebDataset shards ─────────────────────────────────────────
+    shard_paths = list(root.glob("*.tar"))
+    if shard_paths:
+        shards = [str(p) for p in shard_paths]
+        preprocess = T.Compose([
+            T.RandomResizedCrop(cfg.model.img_size),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+        ])
 
-    dataset = (
-        wds.WebDataset(shards, resampled=True)
-        .decode("pil")
-        .to_tuple("img")
-        .map_tuple(preprocess)
+        dataset = (
+            wds.WebDataset(shards, resampled=True)
+            .decode("pil")
+            .to_tuple("img")
+            .map_tuple(preprocess)
+        )
+
+        return DataLoader(
+            dataset,
+            batch_size=cfg.data.batch_size,
+            num_workers=cfg.data.num_workers,
+            pin_memory=True,
+            persistent_workers=True,
+            shuffle=False,  # handled by resampled=True
+        )
+
+    # ── Option 2: plain folder of images ────────────────────────────────────
+    if root.is_dir():
+        from torchvision.datasets import ImageFolder
+        preprocess = T.Compose([
+            T.RandomResizedCrop(cfg.model.img_size),
+            T.RandomHorizontalFlip(),
+            T.ToTensor(),
+        ])
+        folder_ds = ImageFolder(root, transform=preprocess)
+        return DataLoader(
+            folder_ds,
+            batch_size=cfg.data.batch_size,
+            num_workers=cfg.data.num_workers,
+            pin_memory=True,
+            shuffle=cfg.data.shuffle,
+        )
+
+    # ── None found ──────────────────────────────────────────────────────────
+    raise RuntimeError(
+        f"{root} has neither *.tar shards nor image files. "
+        "Set cfg.data.dir to a valid WebDataset shard directory or an image folder."
     )
-
-    loader = DataLoader(
-        dataset,
-        batch_size=cfg.data.batch_size,
-        num_workers=cfg.data.num_workers,
-        pin_memory=True,
-        persistent_workers=True,
-        shuffle=False,  # handled by resampled=True
-    )
-    return loader
 
 
 

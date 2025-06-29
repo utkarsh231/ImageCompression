@@ -1,0 +1,58 @@
+###############################################################################
+#  Python / PyTorch projects
+###############################################################################
+# Byte-code, compiled, cache
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.pyo
+
+# Virtual-env / Poetry / Conda
+.venv/
+env/
+venv/
+.pip-windows/
+*.egg-info/
+pip-wheel-metadata/
+
+# Jupyter artefacts
+.ipynb_checkpoints/
+
+# Logs & experiment outputs
+logs/
+wandb/
+runs/
+*.log
+*.out
+*.err
+
+# Checkpoints & model weights
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+
+*.tar
+*.zip
+*.webp
+*.jpg
+*.jpeg
+*.png
+
+# Hugging Face & WebDataset caches
+.cache/
+.huggingface/
+datasets_cache/
+
+# Hydra multirun outputs
+multirun/
+hydra_outputs/
+
+# VSCode
+.vscode/
+# PyCharm
+.idea/
+# macOS
+.DS_Store

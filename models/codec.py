@@ -30,7 +30,7 @@ from torch import Tensor
 # external deps
 from timm.models.vision_transformer import VisionTransformer, PatchEmbed
 from timm.models.swin_transformer import SwinTransformer
-from compressai.layers import EntropyBottleneck, GaussianConditional
+from compressai.entropy_models import EntropyBottleneck, GaussianConditional
 from compressai.losses import RateDistortionLoss
 from piq import ms_ssim, LPIPS
 
@@ -135,7 +135,6 @@ class ViTCompressorImproved(nn.Module):
                 embed_dim=cfg.embed_dim,
                 depth=cfg.depth,
                 num_heads=cfg.heads,
-                representation_size=None,
                 qkv_bias=True,
                 norm_layer=nn.LayerNorm,
             )
@@ -215,7 +214,7 @@ class PerceptualRateDistortionLoss(nn.Module):
     def __init__(self, cfg: CodecCfg):
         super().__init__()
         self.cfg = cfg
-        self.lpips = LPIPS(reduction='mean', version='0.1')
+        self.lpips = LPIPS(reduction='mean')
 
     def forward(self, x_hat: Tensor, x: Tensor, likelihoods: Tensor) -> Tuple[Tensor, dict]:
         # distortion terms
