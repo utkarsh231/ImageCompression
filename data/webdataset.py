@@ -28,16 +28,21 @@ def make_train_loader(cfg):
     shard_paths = list(root.glob("*.tar"))
     if shard_paths:
         shards = [str(p) for p in shard_paths]
+
         preprocess = T.Compose([
             T.RandomResizedCrop(cfg.model.img_size),
             T.RandomHorizontalFlip(),
             T.ToTensor(),
         ])
 
+        # pick the right key: “webp” for ImageNet-21k WEBP shards, else “img”
+        first_name = os.path.basename(shard_paths[0])
+        ext_key = "webp" if "webp" in first_name.lower() else "img"
+
         dataset = (
             wds.WebDataset(shards, resampled=True)
             .decode("pil")
-            .to_tuple("img")
+            .to_tuple(ext_key)            # ← uses the detected key
             .map_tuple(preprocess)
         )
 
@@ -47,7 +52,7 @@ def make_train_loader(cfg):
             num_workers=cfg.data.num_workers,
             pin_memory=True,
             persistent_workers=True,
-            shuffle=False,  # handled by resampled=True
+            shuffle=False,                  # resampled=True already shuffles
         )
 
     # ── Option 2: plain folder of images ────────────────────────────────────
