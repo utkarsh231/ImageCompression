@@ -105,9 +105,10 @@ class ViTCompressorImproved(nn.Module):
         B, _, H0, W0 = x.shape
         x_s = self.stem(x)
         tokens = self.encoder.forward_features(x_s) if hasattr(self.encoder,'forward_features') else self.encoder(x_s)
-        # Calculate patch grid size
-        htok = H0 // self.cfg.patch_size
-        wtok = W0 // self.cfg.patch_size
+        # Calculate patch grid size after stem
+        vit_img = H0 // 4 if self.cfg.use_hybrid_stem else H0
+        htok = vit_img // self.cfg.patch_size
+        wtok = vit_img // self.cfg.patch_size
         # Remove class token if present
         if tokens.size(1) == htok * wtok + 1:
             tokens = tokens[:, 1:]
@@ -144,7 +145,7 @@ class PerceptualRateDistortionLoss(nn.Module):
 if __name__ == "__main__":
     import argparse, torchvision.transforms as T
     from PIL import Image
-    ap=argparse.ArgumentParser(); ap.add_argument("--img",required=True); args=ap.parse_args()
+    ap=argparse.ArgumentParser(); ap.add_argument("--img",required=True); args=ap.parseArgs()
     cfg=CodecCfg(); model=ViTCompressorImproved(cfg).to(cfg.device)
     img=T.Compose([T.Resize((cfg.img_size,cfg.img_size)),T.ToTensor()])(Image.open(args.img).convert("RGB")).unsqueeze(0).to(cfg.device)
     with torch.no_grad(): out,_=model(img)
