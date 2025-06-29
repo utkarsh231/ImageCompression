@@ -1,0 +1,41 @@
+# Hydra‑compatible config – feel free to override on the CLI, e.g.
+#   python train.py trainer.max_epochs=400 model.lam=0.005
+
+model:
+  img_size: 256
+  patch_size: 8
+  embed_dim: 384
+  depth: 8
+  heads: 6
+  windowed: false      # set true for Swin attention
+  use_hybrid_stem: true
+  latent_channels: 384
+  use_gaussian_conditional: false
+  lam: 0.0015          # default λ for RD
+  lam_list: [0.0005, 0.0015, 0.005, 0.015]
+  alpha_ms_ssim: 0.75
+  beta_mse: 0.25
+  gamma_lpips: 0.05
+
+# --- data -------------------------------------------------------------------
+data:
+  dir: /path/to/imagenet/train                # folder of tar files or images
+  #val_dir: /path/to/kodak                     # 24‑image Kodak set for quick val
+  shuffle: true
+  num_workers: 8
+  batch_size: 16                              # after gradient accumulation
+  accum_steps: 16                             # effective bs = batch*accum
+
+# --- trainer ----------------------------------------------------------------
+trainer:
+  epochs: 400
+  lr: 2e-4
+  weight_decay: 1e-4
+  warmup_epochs: 5
+  max_grad_norm: 1.0
+  amp: true
+  log_every: 50
+  ckpt_dir: checkpoints
+  save_freq: 10
+  wandb: true
+  project: ViTCompression
