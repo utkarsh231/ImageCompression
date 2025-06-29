@@ -137,6 +137,7 @@ class ViTCompressorImproved(nn.Module):
                 num_heads=cfg.heads,
                 qkv_bias=True,
                 norm_layer=nn.LayerNorm,
+                in_chans=cfg.patch_size if cfg.use_hybrid_stem else 3,  
             )
 
         # 2.2 Entropy bottleneck -------------------------------------------
